@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.wiki_architect/search.db
+.wiki_architect/search.db-*
+*.log
+raw/*
+!raw/.gitkeep
+wiki/*
+!wiki/.gitkeep
+!wiki/index.md
+!wiki/log.md
+schema/CLAUDE.md
+dist/
+build/
+*.egg-info/

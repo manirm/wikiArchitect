@@ -1,0 +1,23 @@
+# Task List: Implementing WikiArchitect
+
+- `[ ]` **Phase 1: Project Scaffolding**
+    - `[ ]` Initialize project with `uv`
+    - `[ ]` Create directory structure (`raw`, `wiki`, `schema`, `src`)
+    - `[ ]` Establish base configurations (e.g., `schema/CLAUDE.md`)
+- `[ ]` **Phase 2: Core Engine Development**
+    - `[ ]` `core/agent.py`: Implement LLM-Agent logic for Ingest, Query, and Lint.
+    - `[ ]` `core/pdf_extractor.py`: Add text extraction from PDF sources.
+    - `[ ]` `core/search.py`: Integrate `sqlite-vss` for vector search with Ollama embeddings.
+- `[ ]` **Phase 3: GUI Development (wxPython)**
+    - `[ ]` `ui/main_frame.py`: Create the main layout (sidebar, notebook, chat panel).
+    - `[ ]` `ui/file_list.py`: Component for browsing `raw/` and `wiki/` folders.
+    - `[ ]` `ui/editor_view.py`: Markdown editor and HTML preview.
+    - `[ ]` `ui/agent_chat.py`: Interaction pane for the "Wiki Architect" agent.
+    - `[ ]` `ui/diff_viewer.py`: Custom dialog for reviewing LLM-proposed changes.
+- `[ ]` **Phase 4: Integration & Refining**
+    - `[ ]` Connect the UI to the Core Agent.
+    - `[ ]` Implement the full "Ingest -> Review -> Commit" workflow.
+    - `[ ]` Real-time file sync with `watchdog`.
+- `[ ]` **Phase 5: Polish & Excellence**
+    - `[ ]` Modern styling for the wxPython interface (best practices for aesthetics).
+    - `[ ]` Final verification and testing.
