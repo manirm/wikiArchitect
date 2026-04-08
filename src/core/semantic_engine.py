@@ -54,11 +54,17 @@ class SemanticEngine:
     async def index_note(self, relative_path: str, content: str):
         """Generates embeddings and updates the semantic index if content changed."""
         abs_path = os.path.join(self.vault_dir, relative_path)
+        try:
+            abs_path = validate_vault_path(abs_path, self.vault_dir)
+        except Exception as e:
+            logging.error(f"Semantic Engine blocked access to external path: {abs_path}")
+            return
+
         if not os.path.exists(abs_path) and not content:
             return
 
-        # Simple content hash to avoid redundant LLM calls
-        content_hash = hashlib.md5(content.encode()).hexdigest()
+        # SHA-256 for robust content integrity check (usedforsecurity=False for caching/dedup)
+        content_hash = hashlib.sha256(content.encode(), usedforsecurity=False).hexdigest()
         
         curr = self.conn.cursor()
         curr.execute("SELECT id, hash FROM notes WHERE path = ?", (relative_path,))

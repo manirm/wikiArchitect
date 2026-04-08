@@ -2,6 +2,8 @@ import asyncio
 import json
 import re
 import os
+import logging
+import sys
 from datetime import datetime
 from typing import List, Optional, Tuple, Dict, Any
 from pydantic import BaseModel, Field, ValidationError
@@ -136,10 +138,13 @@ Return your proposal as a JSON block matching this schema:
             context_str = "\nRELEVANT CONTEXT FROM VAULT:\n---\n"
             for note in context_notes:
                 try:
-                    with open(os.path.join(self.base_dir, note['path']), 'r') as f:
+                    from src.core.path_utils import validate_vault_path
+                    validated_path = validate_vault_path(note['path'], self.base_dir)
+                    with open(validated_path, 'r') as f:
                         content = f.read()
-                        context_str += f"FILE: {note['path']}\nCONTENT:\n{content[:2000]}\n---\n"
-                except Exception: continue
+                except Exception as e:
+                    logging.error(f"Error reading context file {note['path']}: {str(e)}")
+                    continue
 
         # 2. Augmented Prompt
         prompt = f"""

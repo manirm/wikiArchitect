@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import logging
 
 class GraphGenerator:
     """
@@ -165,4 +166,6 @@ class GraphGenerator:
                         target_norm = normalize(target_raw)
                         if target_norm in normalized_to_id:
                             self.links.append({"source": source_id, "target": normalized_to_id[target_norm]})
-            except Exception: pass
+            except Exception as e:
+                logging.debug(f"Graph link resolution failed: {str(e)}")
+                pass

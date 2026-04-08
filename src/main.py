@@ -42,7 +42,9 @@ def set_macos_app_id():
 
         cf.CFDictionarySetValue(info_dict, cf_str("CFBundleName"), cf_str("WikiArchitect"))
         cf.CFDictionarySetValue(info_dict, cf_str("CFBundleDisplayName"), cf_str("WikiArchitect"))
-    except Exception:
+    except Exception as e:
+        import logging
+        logging.debug(f"macOS display name adjustment failed: {str(e)}")
         pass
 
 class WikiArchitectApp(wx.App):

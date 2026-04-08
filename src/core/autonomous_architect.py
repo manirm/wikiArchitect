@@ -13,21 +13,28 @@ class AutonomousArchitect:
         
     async def generate_moc(self) -> str:
         """Generates or updates the Map of Content (MOC.md) using the canonical template."""
+        from src.core.path_utils import validate_vault_path
+        
         template_path = os.path.join(self.agent.base_dir, "schema", "MOC_TEMPLATE.md")
         template_content = ""
-        if os.path.exists(template_path):
-            with open(template_path, "r") as f:
-                template_content = f.read()
+        try:
+            validated_template = validate_vault_path(template_path, self.agent.base_dir)
+            if os.path.exists(validated_template):
+                with open(validated_template, "r") as f:
+                    template_content = f.read()
+        except Exception as e:
+            logging.error(f"Failed to read MOC template: {str(e)}")
 
         prompt = f"Using this template structure:\n\n{template_content}\n\nScan the vault and generate a comprehensive MOC.md. Replace tokens like {{{{date}}}}, {{{{recent_breakthroughs}}}}, and {{{{emergent_clusters}}}} with real insights from the notes. Keep the professional formatting."
         
         response = await self.agent.propose_query(prompt)
         
         moc_path = os.path.join(self.agent.base_dir, "MOC.md")
-        with open(moc_path, "w") as f:
+        validated_moc = validate_vault_path(moc_path, self.agent.base_dir)
+        with open(validated_moc, "w") as f:
             f.write(response.main_response)
             
-        return moc_path
+        return validated_moc
 
     async def generate_weekly_briefing(self) -> str:
         """Parses log.md and synthesizes the last 7 days of activity into a structured report."""

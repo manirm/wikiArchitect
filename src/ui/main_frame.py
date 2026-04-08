@@ -4,6 +4,8 @@ import wx.stc
 import wx.html2
 import wx.adv
 import os
+import sys
+import logging
 import re
 import threading
 from datetime import datetime
@@ -599,7 +601,8 @@ class MainFrame(wx.Frame):
                 with open(log_path, "a") as f:
                     f.write(f"[{datetime.now()}] ERROR: {str(e)}\n")
                     import traceback
-                    traceback.print_exc(file=f)
-            except Exception: pass
+            except Exception as e:
+                logging.error(f"Failed to log error to indexing.log: {str(e)}")
+                pass
         finally:
             loop.close()
