@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+        shell: bash
+
+      - name: Install Dependencies
+        run: uv sync --all-extras
+
+      - name: Install Nuitka
+        run: uv run pip install nuitka
+
+      - name: Build with Nuitka
+        run: uv run python scripts/build.py
+
+      - name: Package Windows Installer (NSIS)
+        if: matrix.os == 'windows-latest'
+        run: |
+          makensis scripts/installer.nsi
+          mv WikiArchitect-Installer-*.exe WikiArchitect-Windows.exe
+
+      - name: Package macOS (DMG)
+        if: matrix.os == 'macos-latest'
+        run: |
+          mkdir -p dmg_root
+          cp -r dist/main.app dmg_root/
+          hdiutil create -volname "WikiArchitect" -srcfolder dmg_root -ov -format UDZO WikiArchitect-macOS.dmg
+
+      - name: Package Ubuntu (Zip)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cd dist
+          zip -r ../WikiArchitect-Linux.zip main.dist/
+
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            WikiArchitect-Windows.exe
+            WikiArchitect-macOS.dmg
+            WikiArchitect-Linux.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
