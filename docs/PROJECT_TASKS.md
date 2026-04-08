@@ -1,0 +1,8 @@
+- [x] Create `vault/` and `vault/schema/` directories
+- [x] Migrate `wiki/` files to `vault/`
+- [x] Migrate `demo_knowledge/` files to `vault/`
+- [x] Copy `schema/CLAUDE.md` to `vault/schema/CLAUDE.md`
+- [x] Update `WikiArchitectAgent` default `base_dir` to `vault`
+- [x] Update `MainFrame` initialization to point to `vault`
+- [x] Delete legacy `wiki/` and `demo_knowledge/` folders
+- [x] Verify Knowledge Graph is clean (only vault files)

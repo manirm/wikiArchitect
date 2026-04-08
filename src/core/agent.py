@@ -1,17 +1,19 @@
 import asyncio
 import json
 import re
+import os
 from datetime import datetime
 from typing import List, Optional, Tuple, Dict, Any
 from pydantic import BaseModel, Field, ValidationError
 import ollama
 import httpx
+from src.core.semantic_engine import SemanticEngine
 
 # --- Data Models ---
 
 class FileChange(BaseModel):
     """Represents a proposed change to a file in the wiki."""
-    file_path: str = Field(..., description="Target file path (e.g., 'wiki/topic.md')")
+    file_path: str = Field(..., description="Target file path (e.g., 'vault/topic.md')")
     original_content: Optional[str] = Field(None, description="Snippet of current content for context")
     new_content: str = Field(..., description="The complete new content for the file")
     reasoning: str = Field(..., description="Why this change is being proposed")
@@ -29,20 +31,28 @@ class WikiArchitectAgent:
     Follows the protocols defined in schema/CLAUDE.md.
     """
 
-    def __init__(self, model: str = "gemma4-pro:latest", base_dir: str = "."):
+    def set_base_dir(self, new_dir: str):
+        """Updates the agent's workspace and reloads core instructions."""
+        self.base_dir = new_dir
+        self._system_prompt = self._load_system_prompt()
+
+    def __init__(self, model: str = "gemma4-pro:latest", base_dir: str = "vault"):
         self.model = model
-        self.base_dir = base_dir
+        self.base_dir = os.path.abspath(base_dir)
         self._lock = asyncio.Lock()
         self._client = ollama.AsyncClient()
         self._system_prompt = self._load_system_prompt()
+        self.semantic_engine = SemanticEngine(self.base_dir)
 
     def _load_system_prompt(self) -> str:
         """Loads the master instructions from schema/CLAUDE.md."""
-        try:
-            with open(f"{self.base_dir}/schema/CLAUDE.md", "r") as f:
-                return f.read()
-        except FileNotFoundError:
-            return "You are the WikiArchitect AI. Maintain the wiki with rigor and mapping to sources."
+        path = f"{self.base_dir}/schema/CLAUDE.md"
+        if not os.path.exists(path):
+            # Fallback to internal app default if the wiki lacks custom rules
+            return "You are WikiArchitect, a Knowledge Librarian."
+            
+        with open(path, "r") as f:
+            return f.read()
 
     async def __aenter__(self):
         return self
@@ -100,9 +110,9 @@ CONTENT:
 
 INSTRUCTIONS:
 1. Synthesize the core concepts from this source.
-2. Propose new wiki pages or updates to existing ones in `wiki/`.
-3. Update `wiki/index.md` if new domains are added.
-4. Update `wiki/log.md` with an audit entry.
+2. Propose new wiki pages or updates to existing ones in `vault/`.
+3. Update `vault/index.md` if new domains are added.
+4. Update `vault/log.md` with an audit entry.
 
 Return your proposal as a JSON block matching this schema:
 {{
@@ -117,17 +127,29 @@ Return your proposal as a JSON block matching this schema:
 
     async def propose_query(self, user_query: str) -> AgentResponse:
         """
-        Synthesizes an answer from the wiki and proposes updates (links, cross-references).
+        Synthesizes an answer from the wiki using RAG context and proposes updates.
         """
-        # In a real RAG implementation, we would fetch relevant documents here first.
-        # For now, we rely on the LLM's memory or simplified browsing if provided later.
+        # 1. Semantic Retrieval
+        context_notes = await self.semantic_engine.search(user_query, limit=3)
+        context_str = ""
+        if context_notes:
+            context_str = "\nRELEVANT CONTEXT FROM VAULT:\n---\n"
+            for note in context_notes:
+                try:
+                    with open(os.path.join(self.base_dir, note['path']), 'r') as f:
+                        content = f.read()
+                        context_str += f"FILE: {note['path']}\nCONTENT:\n{content[:2000]}\n---\n"
+                except Exception: continue
+
+        # 2. Augmented Prompt
         prompt = f"""
 TASK: QUERY KNOWLEDGE BASE
 QUERY: {user_query}
+{context_str}
 
 INSTRUCTIONS:
-Provide a detailed answer. If you identify missing links or see opportunities to 
-cross-reference existing wiki pages, propose those changes.
+Provide a detailed answer. Use the 'RELEVANT CONTEXT' provided above to ensure accuracy.
+If you identify missing links or see opportunities to cross-reference existing wiki pages, propose those changes.
 
 Output JSON with 'main_response' and 'file_changes'.
 """
@@ -138,7 +160,7 @@ Output JSON with 'main_response' and 'file_changes'.
         """
         Evaluates the wiki for consistency and broken links.
         """
-        # Logic to scan wiki/ directory would go here to provide context to the LLM.
+        # Logic to scan vault/ directory would go here to provide context to the LLM.
         prompt = """
 TASK: LINT KNOWLEDGE BASE
 INSTRUCTIONS:
