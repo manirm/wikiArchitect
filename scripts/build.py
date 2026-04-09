@@ -4,11 +4,11 @@ import shutil
 import subprocess
 import argparse
 
-def get_sqlite_vss_paths():
-    """Locates the sqlite-vss extension files."""
+def get_sqlite_vec_paths():
+    """Locates the sqlite-vec extension files."""
     try:
-        import sqlite_vss
-        base_dir = os.path.dirname(sqlite_vss.__file__)
+        import sqlite_vec
+        base_dir = os.path.dirname(sqlite_vec.__file__)
         files = [f for f in os.listdir(base_dir) if f.endswith(('.so', '.dylib', '.dll'))]
         return [os.path.join(base_dir, f) for f in files]
     except ImportError:
@@ -44,10 +44,10 @@ def run_build():
     if os.path.isdir(os.path.join("src", "ui", "assets")):
         cmd.append("--include-data-dir=src/ui/assets=assets")
 
-    # 4. Include sqlite-vss extensions
-    vss_files = get_sqlite_vss_paths()
+    # 4. Include sqlite-vec extensions
+    vss_files = get_sqlite_vec_paths()
     for f in vss_files:
-        # Nuitka 2.0+ uses --include-data-files or --include-binaries
+        # Bundle the extension files directly into the root
         cmd.append(f"--include-data-files={f}={os.path.basename(f)}")
 
     # 4. OS Specific Flags

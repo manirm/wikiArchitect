@@ -1,16 +1,17 @@
 import sqlite3
-import sqlite_vss
+import sqlite_vec
 import os
 import json
 import hashlib
 import asyncio
+import logging
 from typing import List, Dict, Any, Optional
 import ollama
 
 class SemanticEngine:
     """
     Local-first vector search engine for WikiArchitect.
-    Uses sqlite-vss for persistent storage and Ollama for embeddings.
+    Uses sqlite-vec for persistent storage and Ollama for embeddings.
     """
     def __init__(self, vault_dir: str, db_path: Optional[str] = None):
         self.vault_dir = vault_dir
@@ -26,11 +27,11 @@ class SemanticEngine:
         self._client = ollama.AsyncClient()
 
     def _init_db(self):
-        """Initializes the SQLite-VSS schema with thread-safety enabled."""
+        """Initializes the SQLite-VEC schema with thread-safety enabled."""
         # Enable multi-threaded access for SQLite
         self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.conn.enable_load_extension(True)
-        sqlite_vss.load(self.conn)
+        sqlite_vec.load(self.conn)
         
         curr = self.conn.cursor()
         
@@ -45,14 +46,23 @@ class SemanticEngine:
             )
         """)
         
-        # 2. VSS Index Table (nomic-embed-text is 768 dims)
-        # Note: sqlite-vss v0.1.2 uses vss0_index syntax
-        curr.execute("CREATE VIRTUAL TABLE IF NOT EXISTS vss_notes USING vss0(embedding(768))")
+        # 2. Check for legacy vss tables and drop them if they exist
+        curr.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='vss_notes'")
+        if curr.fetchone():
+            logging.info("Migrating from legacy sqlite-vss to sqlite-vec. Dropping old tables.")
+            curr.execute("DROP TABLE vss_notes")
+            # Clear metadata hash to trigger re-indexing
+            curr.execute("UPDATE notes SET hash = NULL")
+
+        # 3. VEC Index Table (nomic-embed-text is 768 dims)
+        # sqlite-vec uses vec0 module with 'float[dimension]' syntax
+        curr.execute("CREATE VIRTUAL TABLE IF NOT EXISTS vec_notes USING vec0(embedding float[768])")
         
         self.conn.commit()
 
     async def index_note(self, relative_path: str, content: str):
         """Generates embeddings and updates the semantic index if content changed."""
+        from src.core.vault_utils import validate_vault_path # Avoid circular import if needed
         abs_path = os.path.join(self.vault_dir, relative_path)
         try:
             abs_path = validate_vault_path(abs_path, self.vault_dir)
@@ -63,7 +73,7 @@ class SemanticEngine:
         if not os.path.exists(abs_path) and not content:
             return
 
-        # SHA-256 for robust content integrity check (usedforsecurity=False for caching/dedup)
+        # SHA-256 for robust content integrity check
         content_hash = hashlib.sha256(content.encode(), usedforsecurity=False).hexdigest()
         
         curr = self.conn.cursor()
@@ -78,7 +88,7 @@ class SemanticEngine:
             response = await self._client.embeddings(model="nomic-embed-text", prompt=content)
             embedding = response['embedding']
         except Exception as e:
-            print(f"Embedding error for {relative_path}: {e}")
+            logging.error(f"Embedding error for {relative_path}: {e}")
             return
 
         # 2. Upsert Metadata
@@ -90,10 +100,9 @@ class SemanticEngine:
                          (relative_path, os.path.basename(relative_path)[:-3], content_hash))
             note_id = curr.lastrowid
 
-        # 3. Upsert Vector (VSS tables use rowid)
-        # We need to manually match rowid if it's a virtual table
-        curr.execute("DELETE FROM vss_notes WHERE rowid = ?", (note_id,))
-        curr.execute("INSERT INTO vss_notes(rowid, embedding) VALUES (?, ?)", (note_id, json.dumps(embedding)))
+        # 3. Upsert Vector (VEC0 tables use rowid)
+        curr.execute("DELETE FROM vec_notes WHERE rowid = ?", (note_id,))
+        curr.execute("INSERT INTO vec_notes(rowid, embedding) VALUES (?, ?)", (note_id, json.dumps(embedding)))
         
         self.conn.commit()
 
@@ -104,18 +113,17 @@ class SemanticEngine:
             query_embedding = response['embedding']
             
             curr = self.conn.cursor()
-            # Vector search query using vss0
+            # Vector search query using vec0 MATCH syntax
+            # Results are automatically ordered by distance
             curr.execute("""
-                with matches as (
-                    select rowid, distance
-                    from vss_notes
-                    where vss_search(embedding, ?)
-                    limit ?
-                )
-                select n.path, n.title, m.distance
-                from notes n
-                join matches m on n.id = m.rowid
-                order by m.distance asc
+                SELECT 
+                    n.path, 
+                    n.title, 
+                    v.distance
+                FROM vec_notes v
+                JOIN notes n ON v.rowid = n.id
+                WHERE v.embedding MATCH ?
+                LIMIT ?
             """, (json.dumps(query_embedding), limit))
             
             results = []
@@ -127,7 +135,7 @@ class SemanticEngine:
                 })
             return results
         except Exception as e:
-            print(f"Search error: {e}")
+            logging.error(f"Search error: {e}")
             return []
 
     def close(self):
