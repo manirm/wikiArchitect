@@ -52,8 +52,6 @@ jobs:
           fi
         shell: bash
 
-      - name: Install Nuitka
-        run: uv run pip install nuitka
 
       - name: Build with Nuitka
         run: uv run python scripts/build.py
