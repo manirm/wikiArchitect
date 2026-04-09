@@ -35,12 +35,16 @@ def run_build():
         "--product-name=WikiArchitect",
         "--file-version=0.2.0",
         "--product-version=0.2.0",
-        # Resource Data
-        "--include-data-dir=vault=vault",
-        "--include-data-dir=src/ui/assets=assets", # Assume assets dir exists or will
     ]
 
-    # 3. Include sqlite-vss extensions
+    # 3. Add Resource Data (Conditional)
+    if os.path.isdir("vault"):
+        cmd.append("--include-data-dir=vault=vault")
+    
+    if os.path.isdir(os.path.join("src", "ui", "assets")):
+        cmd.append("--include-data-dir=src/ui/assets=assets")
+
+    # 4. Include sqlite-vss extensions
     vss_files = get_sqlite_vss_paths()
     for f in vss_files:
         # Nuitka 2.0+ uses --include-data-files or --include-binaries
