@@ -35,6 +35,7 @@ def run_build():
         "--product-name=WikiArchitect",
         "--file-version=0.2.0",
         "--product-version=0.2.0",
+        "--assume-yes-for-downloads",
     ]
 
     # 3. Add Resource Data (Conditional)
@@ -55,7 +56,6 @@ def run_build():
         cmd.append("--macos-create-app-bundle")
         # cmd.append("--macos-app-icon=assets/icon.icns")
     elif sys.platform == "win32":
-        cmd.append("--enable-plugin=tk-inter") # just in case, though we use wx
         # cmd.append("--windows-icon-from-ico=assets/icon.ico")
         cmd.append("--windows-uac-admin")
     
